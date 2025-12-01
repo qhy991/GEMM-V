@@ -1,0 +1,39 @@
+name: CI
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+jobs:
+  pixi-ci:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # Install pixi and enable caching of the env
+      - name: Set up pixi
+        uses: prefix-dev/setup-pixi@v0
+        with:
+          # optional: pin a version e.g. '0.24.1'
+          pixi-version: 'latest'
+          cache: true
+          activate-environment: true
+
+      # Verify verilator version
+      - name: Verify Verilator (task)
+        run: pixi run verilator-version
+
+      # Run MAC PE test
+      - name: MAC PE test
+        run: |
+          make TEST_MODULE=tb_mac_pe all
+          ./bin/tb_mac_pe
+
+      # Run simple test
+      - name: One MAC GeMM test
+        run: |
+          make TEST_MODULE=tb_one_mac_gemm all
+          ./bin/tb_one_mac_gemm
