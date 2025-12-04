@@ -57,6 +57,7 @@ module gemm_controller #(
   logic move_M_counter;
   logic move_counter;
 
+
   assign move_K_counter = move_counter;
 
   logic clear_counters;
@@ -128,7 +129,7 @@ module gemm_controller #(
     .rst_ni       ( rst_ni         ),
     .tick_i       ( move_N_counter ),
     .clear_i      ( clear_counters ),
-    .ceiling_i    ( N_size_i       ),
+    .ceiling_i    ( N_size_i   >> 2    ),
     .count_o      ( N_count_o      ),
     .last_value_o ( move_M_counter )
   );
@@ -142,7 +143,7 @@ module gemm_controller #(
     .rst_ni       ( rst_ni                  ),
     .tick_i       ( move_M_counter          ),
     .clear_i      ( clear_counters          ),
-    .ceiling_i    ( M_size_i                ),
+    .ceiling_i    ( (M_size_i >> 2) == 0 ? 1 : (M_size_i >> 2) ),
     .count_o      ( M_count_o               ),
     .last_value_o ( last_counter_last_value )
   );
@@ -199,11 +200,10 @@ module gemm_controller #(
       ControllerBusy: begin
         move_counter = input_valid_i;
         // Check if we are done
-        if (last_counter_last_value) begin
+        if (last_counter_last_value && move_M_counter)  begin
           next_state = ControllerFinish;
         end else if (input_valid_i
-                     && K_count_o == '0 
-                     && (M_count_o != '0 || N_count_o != '0)) begin
+                     && move_N_counter) begin
           // Check when result_valid_o should be asserted
           result_valid_o = 1'b1;
         end
