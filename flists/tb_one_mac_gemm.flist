@@ -1,5 +1,6 @@
 
 rtl/gemm/general_mac_pe.sv
+rtl/gemm/pe_block_4x4.sv
 rtl/common/ceiling_counter.sv
 rtl/gemm/gemm_controller.sv
 rtl/gemm/gemm_accelerator_top.sv
