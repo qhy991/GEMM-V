@@ -18,6 +18,7 @@ VLT_FLAGS	    += --trace-structs
 VLT_COV_FLAGS   := --coverage
 VLT_COV_FLAGS   += --coverage-line
 VLT_COV_FLAGS   += --coverage-toggle
+VLT_COV_FLAGS   += --assert
 
 # Verilator 警告抑制
 VLT_WAIVE 		:= -Wno-CASEINCOMPLETE

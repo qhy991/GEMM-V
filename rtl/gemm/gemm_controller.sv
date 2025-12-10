@@ -39,19 +39,14 @@ module gemm_controller #(
   output logic result_valid_o,
   output logic busy_o,
   output logic done_o,
-  // The target M, K, and N sizes
   input  logic [AddrWidth-1:0] M_size_i,
   input  logic [AddrWidth-1:0] K_size_i,
   input  logic [AddrWidth-1:0] N_size_i,
-  // The the current M, K, and N counts
   output logic [AddrWidth-1:0] M_count_o,
   output logic [AddrWidth-1:0] K_count_o,
   output logic [AddrWidth-1:0] N_count_o
 );
 
-  //-----------------------
-  // Wires and logic
-  //-----------------------
   logic move_K_counter;
   logic move_N_counter;
   logic move_M_counter;
@@ -63,7 +58,6 @@ module gemm_controller #(
   logic clear_counters;
   logic last_counter_last_value;
 
-  // State machine states
   typedef enum logic [1:0] {
     ControllerIdle,
     ControllerBusy,
@@ -75,37 +69,7 @@ module gemm_controller #(
   assign busy_o = (current_state == ControllerBusy  ) ||
                   (current_state == ControllerFinish);
 
-  //-----------------------
-  // DESIGN NOTE:
-  // Counters for M, K, and N dimensions.
-  // These counters are used to keep track of the current position
-  // in the matrix multiplication process.
-  //
-  // They are instantiated using a generic ceiling_counter module.
-  // Each counter increments based on the move_counter signal
-  // and resets when clear_counters is asserted.
-  //
-  // Practically, for a single MAC we use a simple for-loop scheme:
-  //
-  // for m = 0 to M-1
-  //   for n = 0 to N-1
-  //     for k = 0 to K-1
-  //       C[m][n] += A[m][k] * B[k][n]
-  //
-  // This is the dataflow that the counters help to manage.
-  // This will change when we start to have more spatial parallelism.
-  // For example, when we isert parfor loops, then the effective counters
-  // get divided by some parallelism factor S. Refer to lecture 3 again
-  // for more details on this.
-  //
-  // In the counter instantiations below, take note that
-  // the last_value_o output is used to signal when the counter
-  // has reached its ceiling value. This is crucial for the controller
-  // to determine when to transition states and manage the overall flow.
-  //-----------------------
-
-  // Counters for M, K, N
-
+  
   // K Counter
   ceiling_counter #(
     .Width        (      AddrWidth ),
@@ -148,30 +112,6 @@ module gemm_controller #(
     .last_value_o ( last_counter_last_value )
   );
 
-  //-----------------------
-  // DESIGN NOTE:
-  // Below is the contoller state machine where we split the sequential
-  // updates from the change of states.
-  //
-  // When making FSMs, it's a good practice to separate the
-  // sequential logic (state updates) from the combinational logic
-  // (next state and outputs). This separation helps in
-  // avoiding unintended latches and makes the design clearer.
-  // You can clearly follow as you read along what each state does,
-  // and how the outputs change for the given state and a certain input.
-  // Note that the output of the counters are also inputs to the FSM logic.
-  // Hence that is why the counters and the FSM are tightly coupled together.
-  //
-  // Moreover, this FSM is more of a mealy machine, that means
-  // the output signals depend on both the current state and
-  // the inputs. This is evident in how result_valid_o and done_o
-  // are generated based on the current state and input conditions.
-  //
-  // Depending on how you want to design your controller,
-  // states and the operations can differ. Just make sure to be
-  // consistent with your design choices.
-  //-----------------------
-
   // Main controller state machine
   always_ff @(posedge clk_i or negedge rst_ni) begin
     if (!rst_ni) begin
@@ -182,7 +122,6 @@ module gemm_controller #(
   end
 
   always_comb begin
-    // Default assignments
     next_state     = current_state;
     clear_counters = 1'b0;
     move_counter   = 1'b0;
@@ -199,12 +138,10 @@ module gemm_controller #(
 
       ControllerBusy: begin
         move_counter = input_valid_i;
-        // Check if we are done
         if (last_counter_last_value && move_M_counter)  begin
           next_state = ControllerFinish;
         end else if (input_valid_i
                      && move_N_counter) begin
-          // Check when result_valid_o should be asserted
           result_valid_o = 1'b1;
         end
       end
@@ -221,4 +158,38 @@ module gemm_controller #(
       end
     endcase
   end
+
+  //==========================================================================
+  // SVA Cover Properties for FSM Coverage (Verilator --assert)
+  //==========================================================================
+  // synthesis translate_off
+  
+  // State Hit Coverage - verify each state is reached
+  cover property (@(posedge clk_i) disable iff (!rst_ni)
+    current_state == ControllerIdle);
+  
+  cover property (@(posedge clk_i) disable iff (!rst_ni)
+    current_state == ControllerBusy);
+  
+  cover property (@(posedge clk_i) disable iff (!rst_ni)
+    current_state == ControllerFinish);
+
+  // Transition Coverage - verify state machine transitions
+  // Idle -> Busy (on start)
+  cover property (@(posedge clk_i) disable iff (!rst_ni)
+    (current_state == ControllerIdle) && start_i |=>
+    (current_state == ControllerBusy));
+
+  // Busy -> Finish (on completion)
+  cover property (@(posedge clk_i) disable iff (!rst_ni)
+    (current_state == ControllerBusy) && last_counter_last_value && move_M_counter |=>
+    (current_state == ControllerFinish));
+
+  // Finish -> Idle (automatic)
+  cover property (@(posedge clk_i) disable iff (!rst_ni)
+    (current_state == ControllerFinish) |=>
+    (current_state == ControllerIdle));
+
+  // synthesis translate_on
+
 endmodule
