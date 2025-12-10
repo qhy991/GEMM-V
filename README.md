@@ -265,6 +265,26 @@ make TEST_MODULE=tb_one_mac_gemm
 make clean
 ```
 
+### 覆盖率测试 (Verilator)
+
+```bash
+# 一键编译、运行并生成覆盖率报告
+make coverage
+
+# 查看覆盖率摘要
+verilator_coverage coverage.dat
+
+# 查看逐行覆盖详情
+cat coverage_report/annotated/gemm_accelerator_top.sv
+```
+
+**覆盖率报告格式**：
+| 前缀 | 含义 |
+|------|------|
+| `%000000` | 未覆盖 (需关注) |
+| `~000xxx` | 部分覆盖 |
+| ` 001234` | 完全覆盖 (执行次数) |
+
 ### 预期输出
 
 ```

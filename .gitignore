@@ -18,6 +18,8 @@ coverage.ucdb
 /bin/
 *.vcd
 *.fst
+coverage.dat
+/coverage_report/
 
 # ==== Pixi 包管理器 ====
 pixi.lock
