@@ -377,6 +377,109 @@ All 3 Cases Verified Successfully!
 
 **结论**：这是合理的工程权衡，非验证缺陷。
 
+### 开源覆盖率 (Verilator + SVA)
+
+本项目使用 **Verilator** 开源工具实现完整的覆盖率收集：
+
+```bash
+# 运行覆盖率测试
+make coverage
+
+# 查看覆盖率摘要
+verilator_coverage coverage.dat
+```
+
+#### Verilator 覆盖率结果
+
+| 覆盖率类型 | 支持方式 | 结果 |
+|------------|----------|------|
+| **行覆盖率** | `--coverage-line` | 51% (177/344) |
+| **翻转覆盖率** | `--coverage-toggle` | 已收集 |
+| **FSM 状态覆盖** | SVA `cover property` | 100% (3/3 状态) |
+| **状态转移覆盖** | SVA `cover property` | 100% (3/3 转移) |
+
+---
+
+## 📚 SVA (SystemVerilog Assertions) 简介
+
+本项目使用 **SVA** 实现 FSM 状态覆盖，这是一种在 RTL 中声明式描述设计属性的语言。
+
+### 什么是 SVA？
+
+**SVA (SystemVerilog Assertions)** 是 SystemVerilog 的形式化验证子集，用于：
+- **断言 (Assert)**：验证设计必须满足的条件，违反则报错
+- **覆盖 (Cover)**：检查某场景是否在仿真中发生过
+
+### SVA 覆盖语法
+
+```systemverilog
+// 状态覆盖：检查 FSM 是否到达某状态
+cover property (@(posedge clk_i) disable iff (!rst_ni)
+    current_state == ControllerIdle);
+
+// 转移覆盖：检查状态转移是否发生
+cover property (@(posedge clk_i) disable iff (!rst_ni)
+    (current_state == ControllerIdle) && start_i |=>
+    (current_state == ControllerBusy));
+```
+
+### 语法解释
+
+| 部分 | 含义 |
+|------|------|
+| `cover property` | 声明覆盖点 |
+| `@(posedge clk_i)` | 时钟上升沿采样 |
+| `disable iff (!rst_ni)` | 复位期间禁用 |
+| `\|=>` | 下一周期隐含 |
+
+### SVA 操作符
+
+| 操作符 | 含义 | 示例 |
+|--------|------|------|
+| `\|->` | 蕴含 (同周期) | `a \|-> b` |
+| `\|=>` | 蕴含 (下周期) | `a \|=> b` |
+| `##N` | 延迟 N 周期 | `a ##2 b` |
+| `$rose()` | 上升沿 | `$rose(start)` |
+| `$fell()` | 下降沿 | `$fell(busy)` |
+
+### 本项目中的应用
+
+在 `rtl/gemm/gemm_controller.sv` 中添加了 6 个 SVA cover：
+
+```systemverilog
+// 状态命中覆盖 (3 个)
+cover property (...) current_state == ControllerIdle;
+cover property (...) current_state == ControllerBusy;
+cover property (...) current_state == ControllerFinish;
+
+// 状态转移覆盖 (3 个)
+cover property (...) Idle && start |=> Busy;    // Idle → Busy
+cover property (...) Busy && done  |=> Finish;  // Busy → Finish
+cover property (...) Finish        |=> Idle;    // Finish → Idle
+```
+
+### FSM 覆盖率结果
+
+| 覆盖点 | 执行次数 | 状态 |
+|--------|----------|------|
+| ControllerIdle | 35 次 | ✅ |
+| ControllerBusy | 637 次 | ✅ |
+| ControllerFinish | 3 次 | ✅ |
+| Idle → Busy | 675 次 | ✅ |
+| Busy → Finish | 675 次 | ✅ |
+| Finish → Idle | 675 次 | ✅ |
+
+### 工具支持
+
+| 工具 | Assert | Cover | 备注 |
+|------|--------|-------|------|
+| **Verilator** | ✅ | ✅ | `--assert` 标志 |
+| **QuestaSim** | ✅ | ✅ | 商业工具 |
+| **SymbiYosys** | ✅ | ✅ | 形式验证 |
+| **Icarus** | ❌ | ❌ | 不支持 |
+
+---
+
 ### 已知验证缺口
 
 | 缺口 | 说明 | 风险等级 |
